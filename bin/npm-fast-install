@@ -1,0 +1,76 @@
+#!/usr/bin/env node
+/**
+ * CLI for npm-fast-install.
+ *
+ * @copyright
+ * Copyright (c) 2015 by Appcelerator, Inc. All Rights Reserved.
+ *
+ * @license
+ * Licensed under the terms of the Apache Public License.
+ * Please see the LICENSE included with this distribution for details.
+ */
+
+'use strict';
+
+var logger = console;
+var nfi = require('..');
+var pkgJson = require('../package.json');
+var program = require('commander');
+var start = new Date;
+var banner = 'npm-fast-install v' + pkgJson.version + '\n' +
+	'Copyright (c) 2015, Appcelerator, Inc. All Rights Reserved.\n\n' +
+	'Please report bugs to https://github.com/appcelerator/npm-fast-install/issues\n';
+
+// patch the help to show the banner
+var outputHelp = program.outputHelp;
+program.outputHelp = function () {
+	logger.info(banner.trim());
+	outputHelp.apply(program, arguments);
+}.bind(program);
+
+program
+	.version(pkgJson.version, '-v, --version')
+	.description('Installs and caches npm modules.')
+	.usage('[project-dir] [options]')
+	.option('-a, --all', 'Installs all module deps; by default only installs production deps')
+	.option('-c, --cache-dir [dir]', 'Cache directory; defaults to "~/.npm-fast-install"')
+	.option('--allow-shrinkwrap', 'Force disable shrinkwrap; defaults to false')
+	.option('-j, --json', 'Outputs results as JSON')
+	.allowUnknownOption(true)
+	.parse(process.argv);
+
+if (program.json) {
+	logger = {};
+	['log', 'debug', 'info', 'warn', 'error'].forEach(function (lvl) { typeof logger[lvl] === 'function' || (logger[lvl] = function () {}); });
+}
+
+logger.info(banner);
+
+nfi.install({
+		cacheDir: program.cacheDir,
+		dir: program.args.shift(),
+		allowShrinkwrap: !!program.allowShrinkwrap,
+		logger: logger,
+		production: !program.all
+	})
+	.then(function (results) {
+		results.time = (new Date) - start;
+		if (program.json) {
+			console.log(JSON.stringify(results, null, '  '));
+		} else {
+			logger.log();
+			Object.keys(results.modules).forEach(function (name) {
+				logger.info('%s@%s %s', name, results.modules[name].version, results.modules[name].path);
+			});
+			logger.info('\nCompleted successfully in %s seconds!', Math.round(results.time / 100) / 10);
+		}
+	})
+	.catch(function (err) {
+		if (program.json) {
+			console.info(JSON.stringify(err instanceof Error ? { error: err.message, stack: err.stack.split('\n').slice(1).map(function (l) { return l.trim(); }) } : { error: err && err.toString() }, null, '  '));
+		} else {
+			logger.info('  ' + program.helpInformation().trim() + '\n');
+			logger.error(err.stack);
+		}
+		process.exit(1);
+	});
