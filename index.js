@@ -121,6 +121,8 @@ function install(opts) {
 
 					var info = infos[Object.keys(infos).shift()];
 					var ver = dep.ver === '*' || dep.ver === 'latest' ? info.version : semver.maxSatisfying(info.versions, dep.ver + ' <=' + info.version);
+
+					if(!ver){ver = 'latest'}
 					var cacheModuleDir = path.join(cacheDir, dep.name, ver, process.arch, String(modulesAPI));
 					var dest = path.join(destNodeModulesDir, dep.name);
 
