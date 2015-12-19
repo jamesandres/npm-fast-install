@@ -71,6 +71,18 @@ function install(opts) {
 		var deps = pkgJson.dependencies && typeof pkgJson.dependencies === 'object' ? Object.keys(pkgJson.dependencies).map(function (dep) {
 			return { name: dep, ver: pkgJson.dependencies[dep] };
 		}) : [];
+
+		if(!opts.production){
+			var optionalDependencies = pkgJson.optionalDependencies && typeof pkgJson.optionalDependencies === 'object' ? Object.keys(pkgJson.optionalDependencies).map(function (dep) {
+				return { name: dep, ver: pkgJson.optionalDependencies[dep] };
+			}) : [];
+
+			var devDependencies = pkgJson.devDependencies && typeof pkgJson.devDependencies === 'object' ? Object.keys(pkgJson.devDependencies).map(function (dep) {
+				return { name: dep, ver: pkgJson.devDependencies[dep] };
+			}) : [];
+
+			deps = deps.concat(optionalDependencies).concat(devDependencies);
+		}
 		var results = {
 			node: process.version,
 			arch: process.arch,
