@@ -107,7 +107,7 @@ function install(opts) {
 		}, function (err) {
 			if (err) { return cb(err); }
 
-			async.eachLimit(deps, opts.maxTasks || 5, function (dep, cb) {
+			async.eachLimit(deps, opts.maxTasks || 1, function (dep, cb) {
 				if (semver.valid(dep.ver)) {
 					var cacheModuleDir = path.join(cacheDir, dep.name, dep.ver, process.arch, String(modulesAPI));
 					if (fs.existsSync(cacheModuleDir)) {
