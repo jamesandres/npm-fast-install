@@ -120,12 +120,54 @@ function install(opts) {
 			if (err) { return cb(err); }
 
 			async.eachLimit(deps, opts.maxTasks || 1, function (dep, cb) {
+				dep.rawVer = dep.ver;
+
+				var isGit = dep.ver.match(/^git\+/) !== null;
+				if (isGit) {
+					var gitVer = dep.ver.match(/#(.*)$/);
+
+					if (gitVer === null) {
+						return cb(new Error("Git requirements MUST include a #1.2.3 style version. eg: 'git+ssh://git@example.com/ORG/THING.git#1.2.3"));
+					} else {
+						dep.ver = gitVer[1];
+					}
+				}
+
 				if (semver.valid(dep.ver)) {
 					var cacheModuleDir = path.join(cacheDir, dep.name, dep.ver, process.arch, String(modulesAPI));
 					if (fs.existsSync(cacheModuleDir)) {
 						logger.info('Installing %s@%s from cache: %s', dep.name, dep.ver, cacheModuleDir);
 						return copyDir(cacheModuleDir, destNodeModulesDir, cb);
 					}
+				}
+
+				// FIXME: DRY this out. This block was copy pasted from npm.commands.install below.
+				if (isGit) {
+					// need to install it
+					logger.info('Fetching %s@%s', dep.name, dep.ver);
+					var tmpDir = tmp.dirSync({ prefix: 'npm-fast-install-' }).name;
+					npm.commands.install(tmpDir, [dep.rawVer], function (err) {
+						if (err) { return cb(err); }
+
+						function next(err) {
+							// remove the tmp dir
+							fs.removeSync(tmpDir);
+							if (err) { return cb(err); }
+
+							// copy the module from the cache
+							logger.info('Installing %s@%s\n', dep.name, dep.ver);
+							copyDir(cacheModuleDir, destNodeModulesDir, cb);
+						}
+
+						// double check that the dest doesn't already exist
+						if (fs.existsSync(cacheModuleDir)) {
+							next();
+						} else {
+							logger.info('Caching %s@%s %s', dep.name, dep.ver, cacheModuleDir);
+							fs.move(path.join(tmpDir, 'node_modules'), cacheModuleDir, next);
+						}
+					});
+					return undefined;
 				}
 
 				npm.commands.view([dep.name], true, function (err, infos) {
